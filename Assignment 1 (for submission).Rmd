@@ -1,0 +1,532 @@
+---
+title: "Assignment 1"
+author: "Shelley Tang"
+date: "12/02/2021"
+output: pdf_document
+---
+
+Setting up the data
+
+```{r}
+setwd("~/Documents/Multivariate analysis")
+data=read.csv("milk_data.csv")
+set.seed(17407562)
+runif(1,1,431) #By generating a random number between 1 & n obs, I get 219 (rounded up by a whole number) so row 219 will be removed
+data=data[-c(219),] #Now have 430 obs
+names(data) #Variable names
+nrow(data) #After removing one random observation, there are now 430 observations
+
+####These are the packages I would like to use in order to answer the questions of the assignment
+library(MASS) 
+library(e1071)
+library(class)
+#In case you do not have the package, if so, please do not run this line below
+install.packages("psych") 
+library(psych)
+```
+
+Question 1: Data Exploration and Visualisation
+
+```{r}
+
+##Protein Traits
+
+
+summary(data[,7:13]) #To detect for missing values since I want to remove missing values
+#Shows which observations have missing values in protein traits so that I know which observation to remove, all have 124 same observations with missing values except beta_lactoglobulin_b with 126 missing values but 124 same observations as the other protein traits with missing values
+which(is.na(data$kappa_casein))
+which(is.na(data$alpha_s2_casein))
+which(is.na(data$alpha_s1_casein))
+which(is.na(data$beta_casein))
+which(is.na(data$alpha_lactalbumin))
+which(is.na(data$beta_lactoglobulin_a))
+which(is.na(data$beta_lactoglobulin_b))
+#Remove these observations with missing values.
+data=data[-c(16,22,45, 106, 108:111 ,113, 118:213,310,333:352),]
+#Plot the matrix scatter plots between different protein traits in the lower triangle part of the matrix as well as computing the correlation coefficient in the upper triangle part of the matrix. The density plots of the individual protein traits are also plotted on the diagonal part of the matrix. I am interested to observe the relationships between different protein traits as well as the distribution of each protein trait in one plot. Also, the scatter plots are useful to spot extreme outliers which I would like to remove from my analysis as they can affect the results of the analysis.
+pairs.panels(data[,7:13],method="pearson",hist.col="darkcyan",density=TRUE,ellipses=FALSE,main="Matrix Scatter Plot of Protein Traits")
+#To see which observations are the extreme outliers shown in the scatter plots(observations would be very far from where the majority of the points are situated) so that I know which observations to remove. I compute the extreme outliers by seeing on the scatter plots where the outliers approximately lie above or below.
+which(data$kappa_casein>15) #obs 69 and 71
+which(data$alpha_s2_casein>8) #obs 69 and 71
+which(data$alpha_s1_casein>29) #obs 69 and 79
+which(data$beta_casein>25) #obs 69 and 79
+which(data$alpha_lactalbumin>3) #obs 29,  42, 69, 97, 176 
+which(data$beta_lactoglobulin_a>10) #obs 69
+#7 observations are removed from the data due to being extreme outliers.
+data=data[-c(29,42,69,71,79,97,176),]
+#Plot the matrix scatter plots with density plots shown diagonally and correlation coefficents in the upper triangle of the matrix to see whether the distribution of the protein traits has changed and that there are no extreme outliers in the scatter plots. The scatter plots and distribution looks better than before.
+pairs.panels(data[,7:13],method="pearson",hist.col="darkcyan",density=TRUE,ellipses=FALSE,main="Matrix Scatter Plot of Protein Traits after Outlier Removal")
+
+
+##Technological Traits
+
+#To see whether there are missing values (in this case no missing values) and whether there are outliers by seeing how far the minimum value is to the 1st quartile and how far the 3rd quartile is to the maximum value. No missing values. Also,check whether there are values over 30 minutes (more to follow)
+summary(data$Heat_stability)
+#A histogram of Heat stability is plotted in order to check the distribution of Heat Stability and whether there are values over 30 minutes graphically. The milk goes ranacid after 30 minutes so milk is taken out of hot oil bath. The milk which are ranacid and kept in the hot oil bath after 30 mins are discarded from the data.
+hist(data$Heat_stability,col="darkolivegreen3",xlab="Heat Stability",main="Distribution of Heat Stability",ylim=c(0,120)) 
+#To find the observations with heat stability of 31 which will be removed from the data. There are 14 observations with heat stability of 31 minutes.
+which(data$Heat_stability==31) 
+#Remove observations according to the output of the code above since heat stability of over 30 minutes is discarded according to theory.
+data=data[-c(1,2,3,6,9,12,27,49,53,62,122,124,128,129),] 
+
+#Process is similar to analysing heat stability individually. Firstly, removing the missing values of RCT by using summary() shown below. Moreover, check for potential outliers by checking how far the minumum value is to the 1st quartile value and how far the 3rd quartile value is to the maximum value.
+summary(data$RCT) 
+#Check which observations contain missing values of RCT
+which(is.na(data$RCT)) #49 missing values
+#Remove the observations with missing values according to the output of the line of code above
+data=data[-c(1:44,58,63,85,136,139),]
+#Have one row of plots with a plot in each column for 
+par(mfrow=c(1,2))
+#Histogram of RCT is plotted to check the distribution of RCT and for outliers
+hist(data$RCT,xlab="Rennet Coagulation Time", main="Distribution of Rennet Coagulation Time",col="gold3")
+#Boxplot gives better view of extreme outliers 
+boxplot(data$RCT,main="Boxplot of Rennet Coagulation Time",ylab="Rennet Coagulation Time",col="gold3")
+#Using boxplot to determine where the value of the extreme outlier approximately lie above so I know which observation to remove due to being an extreme outlier.
+which(data$RCT>50)
+#Despite that it is important for agricultural researchers to document cows which produce non coagulating milk, research has shown that it could cause inaccuracy to statistical analysis. Since there are only 7 cows which produced milk with RCT of 0 which represent very little of the sample population, it would be best to remove these observations.The code shows which observation has RCT of zero.
+which(data$RCT==0) #remove 73,110,111,115,120,121,140
+#Remove observations which are extreme outlier and/or have RCT of zero according to the output of the line of code above
+data=data[-c(73,110,111,115,120,121,140,213),]
+
+#Same process as analysing RCT individually, Summary statistics for k20 shows that there are observations with curd firming time of zero minutes which should be removed. As usual, remove missing values of k20 first.
+summary(data$k20) 
+#Shows obervations with missing values of k20
+which(is.na(data$k20))
+#Remove observations with missing values of k20, shown in the output of the code above
+data=data[-c(53,55,56,60,73,147,193,216),]
+par(mfrow=c(1,2))
+#Histogram of k20 is plotted check for distribution of it and to check for outliers.
+hist(data$k20,main="Histogram of Curd Firming Time",xlab="Curd Firming Time",col="dodgerblue4") 
+#Boxplot shows a better view for extreme outliers
+boxplot(data$k20, main="Boxplot of Curd Firming Time",ylab="Firming time",col="dodgerblue4") 
+#Computes which observations are the extreme outlier by apporximately estimate where the value of outlier lies above.
+which(data$k20>22)
+#2 obs 101 and 121 with zero curb firming time, and apparently the observations are Hol Fri which often yield noncoagulating milk. However, this represent a very small proportion of the population and should be removed by finding the observations with k20 of zero and then remove these observations
+which(data$k20==0) 
+data=data[-c(79,81,101,121),]
+
+#Summary statistics of a30 to check for potential outliers and missing values of a30. The minimum zero firmness is zero and providing that it takes less than 30 mins for curb to firm given by k30 so observations with curd firmness of zero will be removed
+summary(data$a30) 
+par(mfrow=c(1,2))
+#Histogram of a30 checks the distribution of a30 and detects outliers. Graphically represents the summary statistics
+hist(data$a30,main="Distribution of Curd Firmness after 30 minutes",xlab="Curd Firmness after 30 minutes",ylim=c(0,60),col="darkslategrey")
+#Boxplot of a30 detects outliers more clearly.
+boxplot(data$a30,main="Boxplot of curd firmness after 30 minutes",ylab="Curd Firmness after 30 minutes",col="darkslategrey")
+#Find the observations which have a30 of zero
+which(data$a30==0)
+#Remove observations with a30 of zero (according to the output of the line of code above) since this does not make sense that these milk samples will not firm after 30 minutes provided that the maximum value of k20 is less than 30 minutes.
+data=data[-c(80, 108,118, 121, 123, 125, 126, 127, 131, 132, 143, 170, 191, 193),]
+#Summary statistics of a60 to check for missing values and potential outliers. Gives distribution of a60 numerically. No missing values.
+summary(data$a60)
+par(mfrow=c(1,2))
+#Histogram of a60 to check its distribution.
+hist(data$a60,main="Distribution of Curd Firmness after 60 minutes",ylim=c(0,60),xlab="Curd Firmness after 60 minutes",col="darkred")
+#Boxplot of a60 to detect outliers. There are several outliers very close in value so will not removed as they contribute to the variablity and distribution of a60.
+boxplot(data$a60,main="Boxplot of Curd Firmness after 60 minutes",ylab="Curd Firmness after 60 minutes",col="darkred")
+
+#Summary statistics of pH to check distribution of pH numerrically, missing values and potential outliers. pH ranges from 6.46 to 6.974(very close to 7) in the dataset but in reality pH of milk should range from 6.5 to 6.9 as milk should be slightly acidic.
+summary(data$pH)
+#Check which observation has missing value of pH 
+which(is.na(data$pH)) #observation 96
+#Average pH of milk is 6.7 so filled the missing value with 6.7
+data[96,45]=6.7
+#Histogram of pH checks it's distribution, potential outliers and in general summary statistics graphically.
+par(mfrow=c(1,2))
+hist(data$pH, xlab="pH of Milk Sample",main="Distribution of pH of Milk Sample",ylim=c(0,60),col="darkorchid4")
+#Boxplot of pH checks the spread of pH values and detects outliers more clearly
+boxplot(data$pH,ylab="pH of Milk Sample",main="Boxplot of pH of Milk Sample",ylim=c(6.46,7),col="darkorchid4")
+#Since historgram and summary statistics show that there are pH of over 6.95 which is close to 7, should be discarded. 
+which(data$pH>6.95)
+data=data[-c(14,25),]
+
+#Summary statistics of Casein_micelle_size which shows its distribution numerically, missing values and potential outliers (unusual values).
+summary(data$Casein_micelle_size) 
+#Gives which observations have misisng values of Casein_micelle_size in order to know which observations to remove.
+which(is.na(data$Casein_micelle_size)) #10 missing values
+#Removes observations with missing values of Casein_micelle_size.
+data=data[-c(20,69:77),]
+#Check which observations has Casein Micelle size of 1000 since the maximum value is 3640.0. Casein Micelle Size is usually 50-600mm in diameter with the average of 150mm. It can be assumed that there was an error correcting the data so we can scale these observations by dividing its size by 10.
+which(data$Casein_micelle_size>1000) 
+#Scales the observations with Casein Micelle Size of over 1000 by dividing the Casein Micelle size by 10.
+data[c(5,10,18,22:24),40]=(data[c(5,10,18,22:24),40])/10
+par(mfrow=c(1,2))
+#Now histogram of Casein Micelle Size is plotted to check its distribution and for potential outliers
+hist(data$Casein_micelle_size, xlab="Casein Micelle Size",main="Distribution of Casein Micelle Size",ylim=c(0,200),col="darkorange3")
+#Boxplot of Casein Micelle Size detects outliers more clearly
+boxplot(data$Casein_micelle_size, ylab="Casein Micelle Size",main="Boxplot of Casein Micelle Size",col="darkorange3")
+#Want to remove observations with outliers above 300 since there are extreme and further away from the majority of the observations 
+which(data$Casein_micelle_size>300) #obs 5,10
+#Remove observations that are outliers of above Casein Micelle Size of 300 according to the output of the line of code above.
+data=data[-c(5,10),]
+
+##Relationship between technological traits
+
+#In theory, research has shown that RCT and milk coagulation properties are correlated. RCT should be positively correlated with k20 and negatively correlated with a30. It would be interesting to see if this is the case using the data I am analysing by plotting scatter plots between RCT and k20, RCT and a30, and RCT and a60.
+par(mfrow=c(1,3))
+plot(data$RCT,data$k20,main="Rennet Coagulation Time vs Curd Firming Time",xlab="Rennet Coagulation Time",ylab="Curd Firming Time",ylim=c(0,20))
+plot(data$RCT,data$a30,main="Rennet Coagulation Time vs Curd Firmness after 30 Minutes",xlab="Rennet Coagulation Time",ylab="Curd Firmness after 30 Minutes",ylim=c(0,80))
+plot(data$RCT,data$a60,main="Rennet Coagulation Time vs Curd Firmness after 60 Minutes",xlab="Rennet Coagulation Time",ylab="Curd Firmness after 60 Minutes")
+#It would also be interesting to perform Pearson's Correlation Test on the significance of the relationships between RCT and other Milk coagulation properties. The null hypothesis is that the true correlation is equal to zero and the alternative hypothesis is that the true correlation is not equal to zero. Reject the null hypothesis at 5% significance level if the p-value is less than 0.05.
+cor.test(data$RCT,data$k20) #significant
+cor.test(data$RCT,data$a30) #significant
+cor.test(data$RCT,data$a60) #significant
+
+#There is evidence that pH of milk sample can affect the milk coagulation process. It would be interesting to see how pH can affect milk coagulation by creating scatter plots between pH and RCT, pH and k20, pH and a30, and pH and a60
+par(mfrow=c(1,4))
+plot(data$pH,data$RCT,xlab="pH of Milk",ylab="Rennet Firming Time",main="pH of Milk vs Rennet Firming Time",ylim=c(0,40))
+plot(data$pH,data$k20,xlab="pH of Milk",ylab="Curb Firming Time",main="pH of Milk vs Curb Firming Time",ylim=c(0,20)) #positive relationship, the higher the pH value, the longer the firming time
+plot(data$pH,data$a30,xlab="pH of Milk",ylab="Curb Firmness after 30 Minutes",main="pH of Milk vs Curb Firmness after 30 Minutes",ylim=c(0,80)) 
+plot(data$pH,data$a60,xlab="pH of Milk",ylab="Curb Firmness after 60 Minutes",main="pH of Milk vs Curb Firmness after 60 Minutes")
+#Same approach to testing significance of relationship between RCT and other milk coagulation properties
+cor.test(data$pH,data$RCT) #significant
+cor.test(data$pH,data$k20) #significant
+cor.test(data$pH,data$a30) #significant
+cor.test(data$pH,data$a60) #insignificant= no significant relationship between pH and a60. 
+
+##Interested to find if the Casein micelle size affect the firmness of curd as the purpose of milk coagulation is to destabilise casein micelle size. I am interested to use scatter plots of Casein Micelle Size and RCT, Casein Micelle Size and k20, Casein Micelle Size and a30, and Casein Micelle Size and a60 in order to assess their relationships##
+#Since the 4 graphs will not fit into 1 plot due to long titles, I will fit 2 graphs into 1 plot
+par(mfrow=c(1,2))
+plot(data$Casein_micelle_size,data$RCT,xlab="Casein Micelle Size",ylab="Rennet Coagulation Time",main="Casein Micelle Size vs Rennet Coagulation Time",ylim=c(0,40))
+plot(data$Casein_micelle_size,data$k20,xlab="Casein Micelle Size",ylab="Curd Firming Time",main="Casein Micelle Size vs Curd Firming Time",ylim=c(0,20)) 
+par(mfrow=c(1,2))
+plot(data$Casein_micelle_size,data$a30,xlab="Casein Micelle Size",ylab="Curd Firmness after 30 Minutes",main="Casein Micelle Size vs Curd Firmness after 30 Minutes",ylim=c(0,80)) 
+plot(data$Casein_micelle_size,data$a60,xlab="Casein Micelle Size",ylab="Curd Firmness after 60 Minutes",main="Casein Micelle Size vs Curd Firmness after 60 Minutes") 
+#Same approach to testing significance of relationship between RCT and other milk coagulation properties
+cor.test(data$Casein_micelle_size,data$RCT) #insignificant
+cor.test(data$Casein_micelle_size,data$k20) #insignificant
+cor.test(data$Casein_micelle_size,data$a30) #insignificant
+cor.test(data$Casein_micelle_size,data$a60) #insignificant
+
+#Research has shown that milk coagulation properties are somewhat correlated with protein traits of the cow (genetics traits). It would be interesting to plot a scatter plots with the protein traits and milk coagulation properties to determine their relationships
+pairs(data[,c(7:13,45,47,49,50)])
+#Weak negative relationship between RCT and beta lactoglobulin a and b can be seen in the scatter and moreover research has stated that there is a weak negative relationship between them so I would like to test whether there is a significant relationship or not between RCT and beta lactoglobulin a and b
+cor.test(data$RCT, data$beta_lactoglobulin_a) #significant
+cor.test(data$RCT, data$beta_lactoglobulin_b) # significant
+
+#Lets test the relationship between RCT and other protein traits
+cor.test(data$RCT,data$kappa_casein) #significant
+cor.test(data$RCT,data$alpha_s1_casein) #significant
+cor.test(data$RCT,data$alpha_s2_casein) #not signficant
+cor.test(data$RCT,data$beta_casein) #not signifcant
+cor.test(data$RCT,data$alpha_lactalbumin) #significant
+
+#Research has shown that curd firmness is impacted by protein traits, let test relationships between curd firmness and protein traits
+cor.test(data$a30,data$kappa_casein) #significant, 0.6
+cor.test(data$a30,data$alpha_s1_casein) #0.4342127 significant
+cor.test(data$a30,data$alpha_s2_casein) #0.2649939 significant
+cor.test(data$a30,data$beta_casein) #0.2918301 significant
+cor.test(data$a30,data$alpha_lactalbumin)# 0.2600778 significant
+cor.test(data$a30,data$beta_lactoglobulin_a) #0.3587224 significant
+cor.test(data$a30,data$beta_lactoglobulin_b) #0.2918301 significant
+
+```
+
+Question 2: Clustering Analysis
+
+```{r}
+#Check for missing values in order to remove that observation. In this case, there are no missing values
+sum(is.na(data[,52:582]))
+##Before clustering validation, it would be a good idea to have a quick look at the matrix scatter plots between the different MIR Spectra wavelengths to see if there are clusters of similar milk samples. Also, extreme outliers can affect the clustering process which can be spotted from the matrix scatter plots, particularly the K- means clustering as outliers can affect the accuracy of cluster centroid. Removing these extreme outliers depends on the distance between the extreme outlier and the closest observations, and also the number of observation with the value of the outlier. Possibly, an outlier may seem like one but the question is how extreme is it?  To answer the question whether they are clusters of similar MIR Spectra, there are clusters but from just looking at the scatter plots below, I cannot determine the number of clusters. Using hierachial clustering and K-means clustering methods will allow me to determine the optimal number of clusters##
+par(mfrow=c(1,1))
+pairs(data[,c(52:62)]) 
+pairs(data[,c(63:73)])
+pairs(data[,c(74:84)])
+pairs(data[,c(85:95)])
+pairs(data[,c(96:106)]) 
+#Computes the observation that is an extreme outlier by approximately where this value lies above or below by observing the scatter plots
+which(data$X1149>0.2) 
+which(data$X1115<0.21)
+#Removes the outliers according to the output of the code above
+data=data[-c(69,98,169),]
+pairs(data[,c(107:117)])
+pairs(data[,c(117:127)])
+pairs(data[,c(128:139)])
+pairs(data[,c(140:150)]) # one extreme outlier can be seen
+#Computes the observation that is an extreme outlier by approximately where this value lies above or below by observing the scatter plots
+which(data$X1296<0.043)
+#Removes the observation which is an extreme outlier according to the output of the code above
+data=data[-c(83),]
+pairs(data[,c(151:161)])
+pairs(data[,c(162:172)])
+pairs(data[,c(173:183)]) 
+pairs(data[,c(184:194)]) 
+pairs(data[,c(195:205)])
+pairs(data[,c(206:216)]) 
+pairs(data[,c(217:227)])#talk about the negative relationships, fall in absorbance levels X1774-X1790
+which(data$X1601>-0.01)
+data=data[-c(25,26,94),]
+pairs(data[,c(228:238)]) 
+pairs(data[,c(239:249)]) 
+which(data$X1797 > -0.021)
+data=data[-c(70,76),]
+pairs(data[,c(250:260)]) 
+pairs(data[,c(261:271)]) 
+pairs(data[,c(272:282)]) 
+pairs(data[,c(283:293)])
+pairs(data[,c(294:304)])
+pairs(data[,c(305:315)])
+pairs(data[,c(316:326)])
+pairs(data[,c(327:337)])
+pairs(data[,c(338:348)])
+pairs(data[,c(349:359)]) 
+pairs(data[,c(360:370)])
+pairs(data[,c(371:381)])
+pairs(data[,c(382:392)])
+pairs(data[,c(393:403)])
+pairs(data[,c(404:414)])
+pairs(data[,c(415:425)])
+pairs(data[,c(426:436)])
+pairs(data[,c(437:447)])
+pairs(data[,c(448:458)]) 
+pairs(data[,c(459:469)])
+pairs(data[,c(470:480)])
+pairs(data[,c(481:491)])
+pairs(data[,c(492:502)]) 
+pairs(data[,c(503:513)])
+pairs(data[,c(514:524)])
+pairs(data[,c(525:535)])
+pairs(data[,c(536:546)])
+pairs(data[,c(547:557)])
+which(data$X3714 > 0.04)
+data=data[-c(92),]
+pairs(data[,c(558:568)])
+pairs(data[,c(569:582)])
+
+##I did not standardised the MIR Spectra absorbance rates of different wavelengths because the values are of similar magnitude and same units.##
+
+#Created a subset of the data I am interested to find clusters of milk samples according to the columns of MIR Spectra Absorbance rates of different wavelengths
+MIR=data[,52:582]
+##Perform hierarcherial clustering methods on MIR Spectra, in order to measure dissimilalrity between different clusters and also to explore the clustering structure before performing k- means clustering algorithm which is used to determine the optimale number of clusters. There are 3 linkage methods: average linkage, single linkage, complete linkage.##
+c1.average=hclust(dist(MIR),method="average")
+c1.complete=hclust(dist(MIR),method="complete")
+c1.single=hclust(dist(MIR),method="single")
+
+#Gives the visualisation of the clustering in order to observe where the most dissimilarity occurs between groups (the further the distance of dissimilarity between groups, the less similar these groups are)
+plot(c1.average) #2 clusters
+plot(c1.complete) #K=2
+#A long chaining effect can be seen (long string effect) so single linkage is not appropiate for this data where a new observation will be added to the cluster with less observations or the shortest link (would not make sense for the MIR Spectra data)
+plot(c1.single)
+
+##K means clustering: this method should be used to find the appropiate number of clusters. Hierarchieral clustering is more for exploring the clustering structure of the MIR Spectra, that is, getting an idea of the clustering solutions##
+
+#Create an empty vector
+WGSS=rep(0,10)
+#Set n equal to the number of observations 
+n=nrow(MIR)
+# The code below calculates the within sum of squares for one clustering solution as the k- means algorithm will not allow us to fit clusters with k=1
+WGSS[1]=(n-1) * sum(apply(MIR,2,var))
+#The function generates within group sum of squares for k number of clusters from 2 to 10. The aim of choosing the optimal number of clusters is to minimise within group sum of squares.
+for(k in 2:10)
+{
+  WGSS[k]=sum(kmeans(MIR,centers=k)$withinss)
+}
+#Plot all of the within sum of squares of all k number of clusters from 1 to 10 in order to choose the optimal k number of cluster by the point that elbows out, which is K=2. Even though the aim is to minimise WGSS, it will be more minmised as number of clusters group so that is why we choose optimal number of clusters based on which point gives the elbow effect.
+plot(1:10,WGSS,type="b",xlab="k",ylab="Within group sum of squares",main="Within group sum of squares") 
+
+##Since the optimal number of clusters of milk samples is 2 according to the k-means clustering and what the hierarcherial clustering methods have suggested, run the k-means algorithm with two clusters and cut the denodragm so that there are two cluster. I want to use the Rand index and adjusted rand index to compare how much do the two clustering structure agree using k-means clustering and hierarchical clustering##
+#Run k-means clustering algorithm such that K=2
+cl2=kmeans(MIR,center=2)
+#Cut the dendrogram such that there are 2 disjoint clusters
+hcl2=cutree(hclust(dist(MIR)),2)
+#Create a cross tabulation table to compare clustering methods
+tab=table(cl2$cluster,hcl2)
+tab
+#Generate Rand index ($rand) and adjusted Rand index ($crand), rand index is 0.73 (rounded up to one decimal place) which shows moderate-high agreement between k-means clustering and hierarchical clustering. However, the Rand index can be large so adjusted rand index is used which is adjusted according to chance (0.46). However that figure is not too bad, moderate agreement between k-means clustering and hierarchical clustering.
+classAgreement(tab)
+
+##Find suitable cow covariates relating to the optimal clustering solution##
+
+#Set all categorical variables to factors to allow colour coding of factors within categorical variables in matrix scatter plots to occur
+data$Breed=as.factor(data$Breed)
+data$Date_of_sampling=as.factor(data$Date_of_sampling)
+data$Parity=as.factor(data$Parity)
+data$Milking_Time=as.factor(data$Milking_Time)
+
+##Create a cross tabulation of optimal clustering solution to the classification of orginal labels.Then calculate the Rand Index and adjusted Rand Index using classAgreement() to assess the agreement between clustering solution and original factorisation of breed, date of sampling, parity and milking time##
+
+tab1=table(cl2$cluster,data$Breed)
+classAgreement(tab1) #Rand Index: 0.5 -> moderate agreement, Adjusted Rand Index: 0.007 -> almost no agreement  
+
+tab2=table(cl2$cluster,data$Date_of_sampling)
+classAgreement(tab2) #Rand Index: 0.51 -> moderate agreement, adjusted Rand Index: 0.02-> very low agreement but more association with clustering solution than breed of the cow
+
+tab3=table(cl2$cluster,data$Parity)
+classAgreement(tab3) #Rand Index: 0.5-> moderate agreement, adjusted Rand Index: -0.002 -> no agreement at all
+
+tab4=table(cl2$cluster,data$Milking_Time)
+classAgreement(tab4) #Rand Index: 0.51 -> moderate agreeement, adjusted Rand Index: 0.03-> very low agreement but more association with clustering solution than breed and parity 
+
+##Matrix scatter plots from 1111cm^(-1) to 1149cm^(-1) (an example of specta values of a range of different wavelength to look for comparision of clustering structures) of optimal clustering solution to compare with clusters of MIR Spectra according to categorical variables##
+col=c("lightblue","cornsilk4")
+pairs(data[,96:106],col=adjustcolor(col[cl2$cluster]),pch=16,main="Clustering Result when K=2")
+
+#Then plot scatter plots of original data according to factors of categorical variables in order to compare with clustering solution
+
+col1=c("darkred","blue3","darkgoldenrod1","honeydew3","mediumpurple1","gray15","deeppink","forestgreen","gold3","papayawhip","saddlebrown","slategray","tomato4","turquoise4","navy","lightsteelblue")
+
+pairs(data[,96:106],col=adjustcolor(col1[data$Breed]),pch=16,main="Breed") 
+
+pairs(data[,96:106],col=col1[data$Date_of_sampling],pch=16,main=" Date") #shown in the presentation since the Rand index and adjusted Rand index is one of the highest compared to Breed and Parity.
+
+pairs(data[,96:106],col=col1[data$Parity],pch=16,main="Parity") 
+
+pairs(data[,96:106],col=col1[data$Milking_Time],pch=16,main="Milking Time") #shown in the presentation since the Rand index and adjusted Rand index is one of the highest compared to Breed and Parity.
+```
+
+Section 3: Classification 
+
+```{r}
+##LDA and QDA does not work since n<p such that we have more variables than rows so we will use K-nearest neighbours classification. Moreover, there is a major multicollinearity issue as the spectra values of milk samples of similar wavelengths are strongly correlated to one another##
+
+#Convert Heat Stability to a two factor variable such that Heat Stability>10=1 and Heat Stability<10=2. I am doing this since we are interested to find if classifying milk samples as having a heat stability of less than 10 minutes is possible
+MIR$heat_stab_10=as.factor(data[,44]<10)
+
+#I decided to run the K-nearest neighbour classification for two different training and test datas and for cross validation data in the interest of comparison which will give more of an idea which is the optimal K number of nearest neighbour to base our prediction on. 
+
+#Since the results of the k-nearest neighbour classification are different every time the algorithm is ran, I ran the algorithm three times on  2 different training and test data and a cross validation data approach 
+
+#7/8s of data is training set and 1/8 of data is test set
+#Set index as training data
+index=c(1:132,155:176) 
+train=MIR[index,1:531]
+#Set test data as observations not included in index
+test=MIR[-index,1:531]
+
+##Round 1
+#Set number of seed point in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(95)
+#Create an empty vector to fit the values of the misclassification rate
+misrate=rep(0,10)
+##Run the K-nearest neighbour classification for 1 to 10 classes and then calculate the misclassification rate for each of these classes
+for (k in 1:10){
+  
+  knn.res=knn(train,test,cl=MIR[index,532],k=k)
+  misrate[k]=(nrow(test)-sum(diag(table(knn.res,MIR[-index,532]))))/nrow(test)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misrate, type="b", xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours") 
+
+##Round 2
+#Set number of seed point in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(195)
+#Create an empty vector to fit the values of the misclassification rate
+misrate=rep(0,10)
+##Run the K-nearest neighbour classification for 1 to 10 classes and then calculate the misclassification rate for each of these classes
+for (k in 1:10){
+  
+  knn.res=knn(train,test,cl=MIR[index,532],k=k)
+  misrate[k]=(nrow(test)-sum(diag(table(knn.res,MIR[-index,532]))))/nrow(test)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misrate, type="b", xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours")
+
+##Round 3
+#Set number of seed in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(144)
+#Create an empty vector to fit the values of the misclassification rate
+misrate=rep(0,10)
+##Run the K-nearest neighbour classification for 1 to 10 classes and then calculate the misclassification rate for each of these classes
+for (k in 1:10){
+  
+  knn.res=knn(train,test,cl=MIR[index,532],k=k)
+  misrate[k]=(nrow(test)-sum(diag(table(knn.res,MIR[-index,532]))))/nrow(test)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misrate, type="b", xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours")
+
+#3/4s of data is training set and 1/4 of data is test set
+index2=c(1:44,45:88,133:176)
+train2=MIR[index2,1:531]
+test2=MIR[-index2,1:531]
+
+##Round 1
+#Set number of seed in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(20)
+misrate2=rep(0,10)
+for (k in 1:10){
+  
+  knn.res2=knn(train2,test2,cl= MIR[index2,532],k=k)
+  misrate2[k]=(nrow(test2)-sum(diag(table(knn.res2,MIR[-index2,532]))))/nrow(test2)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misrate2, type="b", xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours")
+
+##Round 2
+#Set number of seed in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(47)
+misrate2=rep(0,10)
+for (k in 1:10){
+  
+  knn.res2=knn(train2,test2,cl= MIR[index2,532],k=k)
+  misrate2[k]=(nrow(test2)-sum(diag(table(knn.res2,MIR[-index2,532]))))/nrow(test2)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misrate2, type="b", xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours")
+
+##Round 3
+#Set number of seed in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(69)
+misrate2=rep(0,10)
+for (k in 1:10){
+  
+  knn.res2=knn(train2,test2,cl= MIR[index2,532],k=k)
+  misrate2[k]=(nrow(test2)-sum(diag(table(knn.res2,MIR[-index2,532]))))/nrow(test2)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misrate2, type="b", xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours") 
+
+
+##Using cross validation data on KNN leaves out one data point from the orginal data and runs the KNN algorithm. Then the misclassification rate is calculate by using the original labels to see which points were classified in the wrong class. This would be interesting to run in order to compare the KNN algoritm results of two different training/test data.##
+
+##Round 1
+#Set number of seed point in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(120)
+misratecv=rep(0,10)
+for (k in 1:10){ 
+  
+  knn_cv=knn.cv(MIR[,1:531],cl=MIR[,532],k=k)
+  misratecv[k]=(nrow(MIR)-sum(diag(table(knn_cv,MIR[,532]))))/nrow(MIR)
+}
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misratecv,type="b",xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours") 
+
+##Round 2
+#Set number of seed point in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(123)
+misratecv=rep(0,10)
+for (k in 1:10){ 
+  
+  knn_cv=knn.cv(MIR[,1:531],cl=MIR[,532],k=k)
+  misratecv[k]=(nrow(MIR)-sum(diag(table(knn_cv,MIR[,532]))))/nrow(MIR)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misratecv,type="b",xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours") 
+
+##Round 3
+#Set number of seed in order to get the same graphs used in the presentation slides as the algorithm produces different results everytime it is ran
+set.seed(145)
+misratecv=rep(0,10)
+for (k in 1:10){ 
+  
+  knn_cv=knn.cv(MIR[,1:531],cl=MIR[,532],k=k)
+  misratecv[k]=(nrow(MIR)-sum(diag(table(knn_cv,MIR[,532]))))/nrow(MIR)
+}
+
+#Plot the misclassification rate for number of neighbour from 1 to 10 to find the lowest misclassification rate
+plot(1:10,misratecv,type="b",xlab="Number of neighbours",ylab="Misclassification Rate",main="Misclassification Rate for K number of neighbours") 
+
+##From running the algoritm on both cross validation data and training and test data split in 7/8s of the orginal data and 1/8s of the data produced optimal number of neighbours being k=5, we can conclude that the optimal number of neighbours to predict the class of an unknown observation is 5##
+
+#However the limitations of the KNN algorithm is that it can produce arbitary results, the fact that different results are produced when the algorithm is ran every time. That was why I ran the algorithm on the same training and test data three times#
+
+
+
+```
+
